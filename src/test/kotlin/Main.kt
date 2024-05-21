@@ -4,88 +4,88 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.TestWatcher
-import org.openqa.selenium.By
 import org.openqa.selenium.OutputType
 import org.openqa.selenium.TakesScreenshot
-import org.openqa.selenium.WebElement
 import org.openqa.selenium.chrome.ChromeDriver
-import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.WebDriverWait
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.util.*
+import kotlin.test.BeforeTest
 import kotlin.test.assertEquals
 
 @ExtendWith(TakeScreenShotOnFailure::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class TestGithub {
     val driver = ChromeDriver()
+    private lateinit var githubPage: GithubPage
+
+    @BeforeTest
+    fun `open browser`() {
+        driver.get(BASE_URL)
+        githubPage = GithubPage(driver)
+        githubPage.open()
+    }
+
 
     @Test
-    fun `test Github`() {
-        driver.get(BASE_URL)
-        driver.manage().window().maximize()
-        WebDriverWait(driver, Duration.ofMillis(1000))
-        val element = driver.findElement(By.cssSelector("h2"))
-        assert(element.text == "LambdaTest Sample App")
-        assert(getTextRemaining() == "5 of 5 remaining")
+    fun `should have correct page title`() {
+        assertEquals(githubPage.titleSelector.text, "LambdaTest Sample App")
+    }
 
-        val checkbox = getNthCheckbox(1)
-        var span = checkbox.findElement(By.xpath("following-sibling::*[1]"))
-        assert(checkbox.getAttribute("checked").isNullOrEmpty())
-        assert(span.getAttribute("class") == "done-false")
+    @Test
+    fun `should display correct remaining text`() {
+        assertEquals(githubPage.remainingSelector.text, "5 of 5 remaining")
+    }
 
-        val todoItems = driver.findElements(By.cssSelector("ul li"))
-        todoItems.forEach { todoItem ->
-            val checkbox = todoItem.findElement(By.cssSelector("input[type=checkbox]"));
-            val spanClass = todoItem.findElement(By.cssSelector("span")).getAttribute("class");
-            assertEquals(spanClass, "done-false");
-            checkbox.click()
-            assertEquals(todoItem.findElement(By.cssSelector("span")).getAttribute("class"), "done-true");
+    @Test
+    fun `should toggle checkboxes correctly`() {
+        githubPage.todoItemsSelector.forEach { todo ->
+            githubPage.getCheckboxSpan(todo)
+                .getAttribute("class")
+                .also {
+                    assertEquals(it, "done-false")
+                }
+            githubPage.findCheckbox(todo).click()
+            githubPage.getCheckboxSpan(todo).getAttribute("class").also {
+                assertEquals(it, "done-true")
+            }
         }
+    }
 
-        val newElement = "Six Item"
+    @Test
+    fun `should add new item correctly`() {
+        val newItem = "Six Item"
+        githubPage.addNewItem(newItem)
+        WebDriverWait(driver, Duration.ofMillis(5000))
+            .until {
+                return@until githubPage.remainingSelector.text == "6 of 6 remaining"
+            }
 
-        driver.findElement(By.id("sampletodotext")).sendKeys(newElement)
-        driver.findElement(By.id("addbutton")).click()
-
-
-        val wait = WebDriverWait(driver, Duration.ofMillis(5000))
-        val regex = Regex("\\d+ of \\d+ remaining")
-        wait.until(ExpectedConditions.textMatches(By.className("ng-binding"), regex.toPattern()))
-
-        val addedCheckbox = getNthCheckbox(6)
-        span = addedCheckbox.findElement(By.xpath("following-sibling::*[1]"))
+        val addedCheckbox = githubPage.getNthCheckbox(6)
         assertEquals(addedCheckbox.getAttribute("checked"), null)
-        assertEquals(span.getAttribute("class"), "done-false")
-        assertEquals(getTextRemaining(), "1 of 6 remaining")
-
-
+        githubPage.getSpanClass(addedCheckbox).also {
+            assertEquals(it, "done-false")
+        }
+        assertEquals(githubPage.remainingSelector.text, "6 of 6 remaining")
         addedCheckbox.click()
+
         assertEquals(addedCheckbox.getAttribute("checked"), "true")
-        assertEquals(span.getAttribute("class"), "done-true")
-        assertEquals(getTextRemaining(), "0 of 6 remaining")
-
-    }
-
-    private fun getTextRemaining(): String {
-        return driver.findElement(By.className("ng-binding")).text
-    }
-
-    private fun getNthCheckbox(n: Int): WebElement {
-        return driver.findElement(By.cssSelector("ul li:nth-child($n) input[type=checkbox]"))
-    }
-
-
-    companion object {
-        const val BASE_URL = "https://lambdatest.github.io/sample-todo-app"
+        githubPage.getSpanClass(addedCheckbox).also {
+            assertEquals(it, "done-true")
+        }
+        assertEquals(githubPage.remainingSelector.text, "5 of 6 remaining")
     }
 
 
     @AfterAll
     fun `close browser`() {
         driver.close()
+    }
+
+    companion object {
+        const val BASE_URL = "https://lambdatest.github.io/sample-todo-app"
     }
 }
 
