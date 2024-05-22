@@ -11,6 +11,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    implementation("org.seleniumhq.selenium:selenium-java:4.21.0")
+
 }
 
 tasks.test {
